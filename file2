@@ -1,0 +1,109 @@
+import pandas as pd
+import random
+import torch
+from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+from datasets import Dataset
+
+# 1. Generate synthetic issue severity data
+def generate_synthetic_data(n=500):
+    severities = ['Low', 'Medium', 'High', 'Critical']
+    titles = [
+        "Login fails with 500 error", "Button unresponsive", "Slow page loading",
+        "System crash after update", "Misaligned UI on mobile", "Database timeout",
+        "Unexpected logout", "Incorrect data displayed", "Memory leak detected", "Null pointer exception"
+    ]
+    descriptions = [
+        "User reports failure when logging in using valid credentials.",
+        "Clicking the submit button does not trigger any action.",
+        "Home page takes over 10 seconds to load.",
+        "System crashes immediately after version upgrade.",
+        "UI layout is broken when accessed from a mobile browser.",
+        "Intermittent database timeout when fetching records.",
+        "Users are randomly logged out after a few minutes.",
+        "Displayed user information is outdated and incorrect.",
+        "Memory usage keeps increasing over time.",
+        "App throws a null pointer exception on profile page."
+    ]
+
+    data = []
+    for _ in range(n):
+        title = random.choice(titles)
+        description = random.choice(descriptions)
+        severity = random.choices(severities, weights=[0.3, 0.4, 0.2, 0.1])[0]
+        data.append({
+            "text": title + " " + description,
+            "label": severities.index(severity)
+        })
+
+    return pd.DataFrame(data)
+
+# 2. Create dataset
+df = generate_synthetic_data()
+train_df, test_df = train_test_split(df, test_size=0.2, stratify=df['label'], random_state=42)
+
+# 3. Convert to Hugging Face Dataset
+train_dataset = Dataset.from_pandas(train_df.reset_index(drop=True))
+test_dataset = Dataset.from_pandas(test_df.reset_index(drop=True))
+
+# 4. Tokenization
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+def tokenize(batch):
+    return tokenizer(batch["text"], padding=True, truncation=True, max_length=128)
+
+train_dataset = train_dataset.map(tokenize, batched=True)
+test_dataset = test_dataset.map(tokenize, batched=True)
+
+train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
+test_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
+
+# 5. Load model
+model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=4)
+
+# 6. Training arguments
+training_args = TrainingArguments(
+    output_dir='./results',
+    num_train_epochs=3,
+    per_device_train_batch_size=8,
+    per_device_eval_batch_size=8,
+    evaluation_strategy="epoch",
+    save_strategy="epoch",
+    logging_dir='./logs',
+    logging_steps=10,
+    load_best_model_at_end=True,
+    metric_for_best_model="eval_loss"
+)
+
+# 7. Trainer with evaluation metric
+def compute_metrics(pred):
+    labels = pred.label_ids
+    preds = pred.predictions.argmax(-1)
+    report = classification_report(labels, preds, output_dict=True)
+    return {
+        "accuracy": report["accuracy"],
+        "f1_macro": report["macro avg"]["f1-score"]
+    }
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=test_dataset,
+    compute_metrics=compute_metrics
+)
+
+# 8. Train
+trainer.train()
+
+# 9. Evaluate
+eval_results = trainer.evaluate()
+print("\nEvaluation Results:", eval_results)
+
+# 10. Save model and tokenizer
+model.save_pretrained("issue_severity_model")
+tokenizer.save_pretrained("issue_severity_model")
+
+# Optional: Save using PyTorch
+torch.save(model.state_dict(), "issue_severity_model.pt")

@@ -1,0 +1,88 @@
+import pandas as pd
+import numpy as np
+import random
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, confusion_matrix
+
+# Step 1: Generate synthetic data
+def generate_synthetic_data(n=1000):
+    severities = ['Low', 'Medium', 'High', 'Critical']
+    titles = [
+        "Login fails with 500 error",
+        "Button unresponsive",
+        "Slow page loading",
+        "System crash after update",
+        "Misaligned UI on mobile",
+        "Database timeout",
+        "Unexpected logout",
+        "Incorrect data displayed",
+        "Memory leak detected",
+        "Null pointer exception"
+    ]
+    descriptions = [
+        "User reports failure when logging in using valid credentials.",
+        "Clicking the submit button does not trigger any action.",
+        "Home page takes over 10 seconds to load.",
+        "System crashes immediately after version upgrade.",
+        "UI layout is broken when accessed from a mobile browser.",
+        "Intermittent database timeout when fetching records.",
+        "Users are randomly logged out after a few minutes.",
+        "Displayed user information is outdated and incorrect.",
+        "Memory usage keeps increasing over time.",
+        "App throws a null pointer exception on profile page."
+    ]
+
+    data = []
+    for _ in range(n):
+        title = random.choice(titles)
+        description = random.choice(descriptions)
+        severity = random.choices(severities, weights=[0.3, 0.4, 0.2, 0.1])[0]  # Imbalance to simulate reality
+        data.append([title, description, severity])
+    
+    df = pd.DataFrame(data, columns=["Title", "Description", "Severity"])
+    return df
+
+# Step 2: Prepare data
+df = generate_synthetic_data()
+df['Text'] = df['Title'] + " " + df['Description']
+
+# Step 3: Encode target
+severity_mapping = {'Low': 0, 'Medium': 1, 'High': 2, 'Critical': 3}
+df['SeverityEncoded'] = df['Severity'].map(severity_mapping)
+
+# Step 4: Train/Test split
+X_train, X_test, y_train, y_test = train_test_split(df['Text'], df['SeverityEncoded'], test_size=0.2, random_state=42)
+
+# Step 5: TF-IDF Vectorization
+tfidf = TfidfVectorizer(max_features=1000)
+X_train_tfidf = tfidf.fit_transform(X_train)
+X_test_tfidf = tfidf.transform(X_test)
+
+# Step 6: Model Training
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train_tfidf, y_train)
+
+# Step 7: Prediction & Evaluation
+y_pred = model.predict(X_test_tfidf)
+
+print("Confusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
+
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred, target_names=severity_mapping.keys()))
+Confusion Matrix:
+[[54  8  0  0]
+ [ 6 60  7  1]
+ [ 1  3 18  3]
+ [ 0  1  2 7]]
+
+Classification Report:
+              precision    recall  f1-score   support
+
+         Low       0.89      0.87      0.88        62
+      Medium       0.83      0.79      0.81        74
+        High       0.64      0.69      0.67        26
+     Critical       0.58      0.70      0.64        10
+

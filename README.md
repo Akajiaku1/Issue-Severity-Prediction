@@ -87,20 +87,11 @@ pip install pandas scikit-learn transformers datasets torch
     Integrate with Jira/GitHub Issues for real data
 
     Deploy model using Docker & Hugging Face Spaces
+Author
+  Name: Otutu Anslem
+  Github: https://github.com/Otutu11
+  LinkedIn: https://www.linkedin.com/in/otutu-anslem-53a687359/
 
 📜 License
 
 MIT License – feel free to use, modify, and distribute.
-🤝 Contributing
-
-Pull requests are welcome. For major changes, open an issue first to discuss what you would like to change.
-
-
----
-
-Let me know if you'd like to add:
-- A **badge for Hugging Face model sharing**
-- **GitHub Actions CI**
-- **API deployment instructions**
-
-I can generate those too.
